@@ -18,5 +18,5 @@ Though code achieved average score 2451 in OpenAI gym board, but it seems not th
 <ol>
 <li>If the epsilon is set to 0, it can't work well and may stuck at some local points.</li>
 <li>I didn't experiment with many different hyperparameter.</li>
-<li>I also integrated it into the ['A3C'](https://github.com/miyosuda/async_deep_reinforce) code. It's actually hard to combine pixelCNN's gradients from different threads but I managed to do it and also achieved 2500 as the highest score.
+<li>I also integrated it into the <a href="https://github.com/miyosuda/async_deep_reinforce">A3C</a> code. It's actually hard to combine pixelCNN's gradients from different threads but I managed to do it and also achieved 2500 as the highest score.
 </ol>
