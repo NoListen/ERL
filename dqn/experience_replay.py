@@ -131,8 +131,9 @@ batch_size randomly chosen state transitions.
         count = 0
         while count < batch_size:
             # Randomly choose a time step from the replay memory.
-            index = self.rng.randint(self.bottom,
-                                     self.bottom + self.size - self.phi_length)
+            # index = self.rng.randint(self.bottom,
+            #                          self.bottom + self.size - self.phi_length)
+            index = self.rng.randint(0, self.size - self.phi_length)
 
             # Both the before and after states contain phi_length
             # frames, overlapping except for the first and last.

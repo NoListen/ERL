@@ -1,13 +1,11 @@
-import tensorflow as tf
-# util is used for AE
-from util import conv2d, linear
-from scipy.misc import imsave
-import time
 import numpy as np
-from tqdm import tqdm
-from base import BaseModel
-from simple_replay_memory import SimpleReplayMemory
-import random
+import tensorflow as tf
+
+from dqn.AutoEncoder.simple_replay_memory import SimpleReplayMemory
+# util is used for AE
+from dqn.AutoEncoder.util import conv2d, linear
+from dqn.base import BaseModel
+
 
 # default NHWC
 # input is resized to 42x42x1
@@ -183,12 +181,6 @@ class VAE(BaseModel):
         if not self.avg_vae_loss:
             return np.zeros(data.shape[0])
         gen_loss, g = self.sess.run([self.generation_loss, self.g], feed_dict={self.data: data})
-
-        # print np.max(g), np.max(data/255.)
-        # if genre == "ep":
-        for i in range(data.shape[0]):
-            imsave("./fuck/"+time.strftime("%d%H%M%S") + "_%i_%f.jpg" % (i, gen_loss[i]), g[i].reshape(42,42))
-            imsave("./fuck/"+time.strftime("%d%H%M%S") + "_%i_%f_o.jpg" % (i, gen_loss[i]), data[i].reshape(42,42)/255.)
 
         return np.maximum(gen_loss/self.avg_vae_loss-1, 0)
         # return np.maximum(gen_loss/self.avg_vae_loss-1-self.ae_threshold, 0)

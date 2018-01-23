@@ -1,0 +1,6 @@
+**/*.pyc
+**/*.swp
+**/*.pyc
+**/*.py~
+**/.DS_Store
+**/.idea

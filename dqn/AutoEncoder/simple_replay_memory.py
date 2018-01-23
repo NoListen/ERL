@@ -1,11 +1,13 @@
-"""Code from https://github.com/tambetm/simple_dqn/blob/master/src/replay_memory.py"""
-
+"""
+This if for autoencoder not the RL-agent to learn
+Just Serve as one buffer
+"""
 import os
 import random
 import logging
 import numpy as np
 
-from utils import save_npy, load_npy
+from dqn.utils import save_npy, load_npy
 
 
 class SimpleReplayMemory:
