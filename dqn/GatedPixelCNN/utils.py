@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 def mprint(matrix, pivot=0.5):
   for array in matrix:
-    print "".join("#" if i > pivot else " " for i in array)
+    print("".join("#" if i > pivot else " " for i in array))
 
 def show_all_variables():
   total_count = 0

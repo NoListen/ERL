@@ -6,8 +6,8 @@ import time
 
 import numpy as np
 import tensorflow as tf
-from network import Network
-import utils as util
+from .network import Network
+from .utils import preprocess_conf
 from tqdm import tqdm
 flags = tf.app.flags
 from skimage.transform import resize
@@ -83,8 +83,8 @@ def collect_samples(batch_size, env, action_n, ob_shape=(42, 42)):
 # I would find the value range of the image.
 def process_density_images(image):
     # image = image / 255.
-    density_images = resize(image, (42, 42, 1), order=1)
-    return density_images.reshape(-1, 42, 42, 1).astype(np.float32)
+    # density_images = resize(image, (42, 42, 1), order=1)
+    return image.reshape(-1, 42, 42, 1).astype(np.float32)
 
 def process_density_input(samples):
     # NHWC thx!
@@ -92,6 +92,6 @@ def process_density_input(samples):
     return q_func(samples)
 
 def get_network(dens_scope):
-    util.preprocess_conf(conf)
+    preprocess_conf(conf)
     network = Network(conf, 42, 42, 1, dens_scope)
     return network

@@ -4,3 +4,6 @@
 **/*.py~
 **/.DS_Store
 **/.idea
+**/checkpoints
+**/logs
+**/tmp

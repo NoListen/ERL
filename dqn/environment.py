@@ -1,7 +1,7 @@
 import gym
 import random
 import numpy as np
-from utils import rgb2gray, imresize
+from .utils import rgb2gray, imresize
 
 class Environment(object):
   def __init__(self, config):
@@ -18,15 +18,12 @@ class Environment(object):
     self.terminal = True
 
   def new_game(self, from_random_game=False):
-    # if self.lives == 0:
     self._screen = self.env.reset()
-    # self._step(0)
-    # self.render()
     return self.screen, 0, 0, False
 
   def new_random_game(self):
     self.new_game(True)
-    for _ in xrange(random.randint(0, self.random_start - 1)):
+    for _ in range(random.randint(0, self.random_start - 1)):
       self._step(0)
     self.render()
     return self.screen, 0, 0, self.terminal
@@ -41,10 +38,8 @@ class Environment(object):
   @ property
   def screen(self):
     screen = imresize(rgb2gray(self._screen), (110, 84))
-    screen = screen[18:102, :]
+    screen = screen[18:102, :]/255.
     return screen
-    #return imresize(rgb2gray(self._screen)/255., self.dims)
-    #return cv2.resize(cv2.cvtColor(self._screen, cv2.COLOR_BGR2YCR_CB)/255., self.dims)[:,:,0]
 
   @property
   def action_size(self):
@@ -73,7 +68,7 @@ class GymEnvironment(Environment):
     cumulated_reward = 0
     start_lives = self.lives
 
-    for _ in xrange(self.action_repeat):
+    for _ in range(self.action_repeat):
       self._step(action)
       cumulated_reward = cumulated_reward + self.reward
 

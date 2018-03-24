@@ -6,17 +6,15 @@ from tqdm import tqdm
 import tensorflow as tf
 import gym.wrappers
 import time
-from scipy.misc import imsave
 from .base import BaseModel
 from .history import History
-from experience_replay import DataSet
-# from .replay_memory import ReplayMemory
+from .experience_replay import DataSet
 from .ops import linear, conv2d, clipped_error
-from utils import get_time, save_pkl, load_pkl
-from scipy.misc import imresize
-from GatedPixelCNN.func import process_density_images, process_density_input, get_network
+from .utils import get_time, save_pkl, load_pkl
+from .utils import rgb2gray, imresize
+from functools import reduce
+from .GatedPixelCNN.func import process_density_images, process_density_input, get_network
 from math import log, exp, pow
-from utils import rgb2gray, imresize
 
 class Agent(BaseModel):
   def __init__(self, config, environment, sess):
@@ -27,9 +25,7 @@ class Agent(BaseModel):
     self.last_play = 0
     self.env = environment
     self.history = History(self.config)
-    # self.memory = ReplayMemory(self.config, self.model_dir)
     self.memory = DataSet(self.config, np.random.RandomState())
-    self.ep_transition_cache = []
     self.ep_steps = 0
     with tf.variable_scope('step'):
       self.step_op = tf.Variable(0, trainable=False, name='step')
@@ -44,10 +40,7 @@ class Agent(BaseModel):
 
     prob = self.density_model.prob_evaluate(self.sess, density_input, True) + 1e-8
     prob_dot = self.density_model.prob_evaluate(self.sess, density_input) + 1e-8
-    prob_ratio = prob_dot / prob
-    pred_gain = np.sum(np.log(prob_ratio))
-
-    # TODO: DETERMINE WHETHER TO SUBSTRACT THE PSC_START
+    pred_gain = np.sum(np.log(prob_dot) - np.log(prob))
     psc_reward = pow((exp(0.1*pow(step + 1, -0.5) * max(0, pred_gain)) - 1), 0.5)
     return psc_reward
 
@@ -84,33 +77,11 @@ class Agent(BaseModel):
 
       if terminal:
         self.ep_steps = 0
-        # process the cut from the ep_transition_cache
-        # TODO resize the ep_transition to the down_sample_image
-        # TODO re-evaluate the image when train.
-        ep_length = len(self.ep_transition_cache)
-
-        if ep_length > self.bonus_preserve:
-          # TODO: seperate the autoencoder's batchsize from the DQN batchsize
-          ep_bonus_list = []
-          for idx in range(0, ep_length):
-            screen = self.ep_transition_cache[idx][0]
-            ep_bonus_list.append(self.neural_psc(imresize(screen, (42, 42)) / 255., self.step-ep_length+idx))
-
-          # ONLY PRESERVE THE first several ones.
-          ep_bonus = np.array(ep_bonus_list)
-          ep_bonus_rank = ep_bonus.argsort()
-          zero_idx = ep_bonus_rank[:-self.bonus_preserve]
-          ep_bonus[zero_idx] = 0
-
-          for idx in range(0, ep_length):
-            tuple = self.ep_transition_cache[idx]
-            self.memory.add_sample(tuple[0], tuple[1], min(tuple[2] + ep_bonus[idx], 1), tuple[3])
 
         screen, reward, action, terminal = self.env.new_random_game()
 
         for _ in range(self.history_length):
           self.history.add(screen)
-        self.ep_transition_cache = []
 
         num_game += 1
         ep_rewards.append(ep_reward)
@@ -134,8 +105,8 @@ class Agent(BaseModel):
           except:
             max_ep_reward, min_ep_reward, avg_ep_reward = 0, 0, 0
 
-          print '\navg_r: %.4f, avg_l: %.6f, avg_q: %3.6f, avg_ep_r: %.4f, max_ep_r: %.4f, min_ep_r: %.4f, # game: %d, psc_reward: %d' \
-              % (avg_reward, avg_loss, avg_q, avg_ep_reward, max_ep_reward, min_ep_reward, num_game, self.psc_reward)
+          print('\navg_r: %.4f, avg_l: %.6f, avg_q: %3.6f, avg_ep_r: %.4f, max_ep_r: %.4f, min_ep_r: %.4f, # game: %d, psc_reward: %d' \
+              % (avg_reward, avg_loss, avg_q, avg_ep_reward, max_ep_reward, min_ep_reward, num_game, self.psc_reward))
 
           if max_avg_ep_reward * 0.9 <= avg_ep_reward:
             self.step_assign_op.eval({self.step_input: self.step + 1})
@@ -181,35 +152,16 @@ class Agent(BaseModel):
     return action
 
   def observe(self, screen, reward, action, terminal):
-    reward = max(self.min_reward, min(self.max_reward, reward))
     self.history.add(screen)
 
-    # delay it until the terminal state.
-    # In this setting, if we haven't trained autoencoder.
-    # No selective sample happened.
-    # By default, the initial 100000 states could all be rare states.
+    self.psc_reward = self.neural_psc(imresize(screen, (42, 42), order=1), self.step)
 
-    # modify the reward here, step is the t. No relationship with train_frequency.
-    # self.ae.memory.add(imresize(screen, self.ae_screen_shape))
-    # TODO: ADD 42 42 TO THE CONFIG FILE
-    # need to use this step to update the pixelCNN network.
+    # sample the reward to avoid Q value explosion
+    if self.step > self.psc_start and random.random() < self.psc_sample_ratio:
+      reward += self.psc_reward
 
-
-    # print self.psc_reward, self.step
-    # if self.step> 10000:
-    #   imsave("fuck/step%i_%f.png" % (self.step, self.psc_reward), screen)
-
-    if self.step > self.psc_start:
-      self.ep_transition_cache.append((screen, action, reward, terminal))
-    else:
-      self.psc_reward = self.neural_psc(imresize(screen, (42, 42)) / 255., self.step)
-      self.memory.add_sample(screen, action, reward, terminal)
-
-    # if self.step > self.psc_start:
-      # reward += self.psc_reward
-    # reward = np.clip(reward, -1, 1)
-    # self.memory.add(screen, reward, action, terminal) # its initial state
-    # self.memory.add_sample(screen, action, reward, terminal)
+    reward = np.clip(reward, self.min_reward, self.max_reward)
+    self.memory.add_sample(screen, action, reward, terminal)
 
     if self.step > self.learn_start:
       if self.step % self.train_frequency == 0:
@@ -222,31 +174,24 @@ class Agent(BaseModel):
     if self.memory.size < self.history_length:
       return
     else:
-      s, action, reward, terminal, R = self.memory.random_batch(self.batch_size)
-    
-    #print np.max(R)
-    s_t = s[..., :self.history_length]
-    s_t_plus_1 = s[..., -self.history_length:]
-    t = time.time()
+      s_t, s_t_plus_1, action, reward, terminal, R = self.memory.random_batch(self.batch_size)
+
     if self.double_q:
       # Double Q-learning
       pred_action = self.q_action.eval({self.s_t: s_t_plus_1})
-
+      # the action is selected by the action DQN
       q_t_plus_1_with_pred_action = self.target_q_with_idx.eval({
         self.target_s_t: s_t_plus_1,
         self.target_q_idx: [[idx, pred_a] for idx, pred_a in enumerate(pred_action)]
       })
       target_q_t = (1. - terminal) * self.discount * q_t_plus_1_with_pred_action + reward
-
     else:
       q_t_plus_1 = self.target_q.eval({self.target_s_t: s_t_plus_1})
-
       terminal = np.array(terminal) + 0.
-      max_q_t_plus_1 = np.max(q_t_plus_1, axis=1)
+      max_q_t_plus_1 = np.max(q_t_plus_1, axis=1) # the action is selected by the target
       target_q_t = (1. - terminal) * self.discount * max_q_t_plus_1 + reward
-    # tmp = target_q_t
+
     target_q_t = (1 - self.beta) * target_q_t + (1. - terminal) * self.beta * R
-    # print tmp, target_q_t
     _, q_t, loss, summary_str = self.sess.run([self.optim, self.q, self.loss, self.q_summary], {
       self.target_q_t: target_q_t,
       self.action: action,
@@ -269,7 +214,6 @@ class Agent(BaseModel):
     initializer = tf.truncated_normal_initializer(0, 0.02)
     activation_fn = tf.nn.relu
 
-    # training network
     with tf.variable_scope('prediction'):
       if self.cnn_format == 'NHWC':
         self.s_t = tf.placeholder('float32',
@@ -312,7 +256,7 @@ class Agent(BaseModel):
 
       q_summary = []
       avg_q = tf.reduce_mean(self.q, 0)
-      for idx in xrange(self.env.action_size):
+      for idx in range(self.env.action_size):
         q_summary.append(tf.summary.histogram('q/%s' % idx, avg_q[idx]))
       self.q_summary = tf.summary.merge(q_summary, 'q_summary')
 
@@ -413,7 +357,8 @@ class Agent(BaseModel):
 
     tf.initialize_all_variables().run()
 
-    self._saver = tf.train.Saver(self.w.values() + [self.step_op], max_to_keep=30)
+    self._saver = tf.train.Saver([value for (key, value) in sorted(self.w.items())] +\
+                                 [self.step_op], max_to_keep=30)
 
     self.load_model()
     self.update_target_q_network()
@@ -463,7 +408,7 @@ class Agent(BaseModel):
 
     best_reward, best_idx = 0, 0
     ep_rewards = []
-    for idx in tqdm(xrange(n_episode),ncols=70):
+    for idx in tqdm(range(n_episode),ncols=70):
       screen = monitor.reset()
       screen = imresize(rgb2gray(screen), (110, 84))
       screen = screen[18:102, :]
@@ -489,17 +434,17 @@ class Agent(BaseModel):
 
           break
 
-      print "GET REWARD", current_reward
+      print("GET REWARD", current_reward)
       ep_rewards.append(current_reward)
       if current_reward > best_reward:
         best_reward = current_reward
         best_idx = idx
 
 
-    print "="*30
-    print " [%d] Best reward : %d" % (best_idx, best_reward),
-    print "Average reward: %f" %  np.mean(ep_rewards)
-    print "="*30
+    print("="*30)
+    print(" [%d] Best reward : %d" % (best_idx, best_reward))
+    print("Average reward: %f" %  np.mean(ep_rewards))
+    print("="*30)
 
     if not self.display:
       monitor.close()

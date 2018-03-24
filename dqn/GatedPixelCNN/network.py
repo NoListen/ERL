@@ -2,8 +2,8 @@ from logging import getLogger
 
 import tensorflow as tf
 
-from ops import *
-from utils import *
+from .ops import *
+from .utils import *
 
 logger = getLogger(__name__)
 
@@ -34,7 +34,7 @@ class Network:
     net = conv(self.inputs, conf.gated_conv_num_feature_maps, [7, 7], "A", num_channels, scope="CONV_IN")
     
     # main gated layers
-    for idx in xrange(conf.gated_conv_num_layers):
+    for idx in range(conf.gated_conv_num_layers):
       scope = 'GATED_CONV%d' % idx
       net = gated_conv(net, [1, 1], num_channels, scope=scope)
       logger.info("Building %s" % scope)
@@ -113,11 +113,7 @@ class Network:
 
   def generate_from_occluded(self, images, num_generated_images, occlude_start_row):
     samples = np.copy(images[0:num_generated_images,:,:,:])
-    # samples[:,occlude_start_row:,:,:] = 0.
 
-    # for i in xrange(occlude_start_row,self.height):
-    #   for j in xrange(self.width):
-    #     for k in xrange(self.channel):
     next_sample = self.predict(samples) / (self.pixel_depth - 1.) # argmax or random draw here
     # samples[:, i, j, k] = next_sample
 
@@ -152,9 +148,6 @@ class Network:
   def generate_samples(self, sess, image):
     # samples[:,occlude_start_row:,:,:] = 0.
 
-    # for i in xrange(occlude_start_row,self.height):
-    #   for j in xrange(self.width):
-    #     for k in xrange(self.channel):
     next_sample = self.predict(sess, image) / (self.pixel_depth - 1.) # argmax or random draw here
     # samples[:, i, j, k] = next_sample
 
