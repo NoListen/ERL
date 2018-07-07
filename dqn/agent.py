@@ -16,6 +16,11 @@ from functools import reduce
 from .GatedPixelCNN.func import process_density_images, process_density_input, get_network
 from math import log, exp, pow
 
+def init_history(h, si):
+  for i in range(h.history_length):
+    h.add(si)
+  return h
+
 class Agent(BaseModel):
   def __init__(self, config, environment, sess):
     super(Agent, self).__init__(config)
@@ -54,9 +59,7 @@ class Agent(BaseModel):
     ep_rewards, actions = [], []
 
     screen, reward, action, terminal = self.env.new_random_game()
-
-    for _ in range(self.history_length):
-      self.history.add(screen)
+    self.history = init_history(self.history, screen)
 
     for self.step in tqdm(range(start_step, self.max_step), ncols=70, initial=start_step):
       if self.step == self.learn_start:
@@ -64,26 +67,20 @@ class Agent(BaseModel):
         total_reward, self.total_loss, self.total_q = 0., 0., 0.
         ep_rewards, actions = [], []
 
-      # 1. predict
       action = self.predict(self.history.get())
-      # 2. act
       screen, reward, terminal = self.env.act(action, is_training=True)
-      # 3. observe
-      if self.ep_steps > self.max_ep_steps:
-        terminal = True
-
-      self.observe(screen, reward, action, terminal)
       self.ep_steps += 1
 
+      if self.ep_steps > self.max_ep_steps:
+        terminal = True
+      self.observe(screen, reward, action, terminal)
+
       if terminal:
-        self.ep_steps = 0
-
-        screen, reward, action, terminal = self.env.new_random_game()
-
-        for _ in range(self.history_length):
-          self.history.add(screen)
-
         num_game += 1
+        self.ep_steps = 0
+        screen, reward, action, terminal = self.env.new_random_game()
+        self.history = init_history(self.history, screen)
+
         ep_rewards.append(ep_reward)
         ep_reward = 0.
       else:
@@ -154,11 +151,11 @@ class Agent(BaseModel):
   def observe(self, screen, reward, action, terminal):
     self.history.add(screen)
 
-    self.psc_reward = self.neural_psc(imresize(screen, (42, 42), order=1), self.step)
+    self.psc_reward = self.neural_psc(imresize(screen, (42, 42), order=1), self.step) * self.psc_scale
 
     # sample the reward to avoid Q value explosion
-    if self.step > self.psc_start and random.random() < self.psc_sample_ratio:
-      reward += self.psc_reward
+    if self.step > self.psc_start:
+      reward += self.psc_reward * self.psc_scale
 
     reward = np.clip(reward, self.min_reward, self.max_reward)
     self.memory.add_sample(screen, action, reward, terminal)
@@ -191,7 +188,8 @@ class Agent(BaseModel):
       max_q_t_plus_1 = np.max(q_t_plus_1, axis=1) # the action is selected by the target
       target_q_t = (1. - terminal) * self.discount * max_q_t_plus_1 + reward
 
-    target_q_t = (1 - self.beta) * target_q_t + (1. - terminal) * self.beta * R
+    # Mix it with Monte-Carlo Value
+    target_q_t = (1 - self.beta) * target_q_t + self.beta * (1. - terminal) * R
     _, q_t, loss, summary_str = self.sess.run([self.optim, self.q, self.loss, self.q_summary], {
       self.target_q_t: target_q_t,
       self.action: action,
@@ -389,13 +387,12 @@ class Agent(BaseModel):
     self.update_target_q_network()
 
   def inject_summary(self, tag_dict, step):
-    summary_str_lists = self.sess.run([self.summary_ops[tag] for tag in tag_dict.keys()], {
-      self.summary_placeholders[tag]: value for tag, value in tag_dict.items()
-    })
+    summary_str_lists = self.sess.run([self.summary_ops[tag] for tag in tag_dict.keys()],
+                                      {self.summary_placeholders[tag]: value for tag, value in tag_dict.items()})
     for summary_str in summary_str_lists:
       self.writer.add_summary(summary_str, self.step)
 
-  def play(self, n_step=10000, n_episode=100, test_ep=True, render=False):
+  def play(self, n_step=10000, n_episode=100, test_ep=None, render=False):
     if test_ep == None:
       test_ep = self.ep_end
 
@@ -403,7 +400,6 @@ class Agent(BaseModel):
 
     if not self.display:
       gym_dir = './tmp/%s-%s' % (self.env_name, get_time())
-      # self.env.env.monitor.start(gym_dir)
       monitor = gym.wrappers.Monitor(self.env.env, gym_dir)
 
     best_reward, best_idx = 0, 0
@@ -414,10 +410,8 @@ class Agent(BaseModel):
       screen = screen[18:102, :]
       current_reward = 0
 
-      # if not os.path.exists("fuck/epoch%i" % idx):
-        # os.mkdir("fuck/epoch%i" % idx)
-      for _ in range(self.history_length):
-        test_history.add(screen)
+      test_history = init_history(test_history, screen)
+
 
       for t in range(n_step):
         # 1. predict

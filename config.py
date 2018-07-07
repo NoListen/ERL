@@ -35,6 +35,8 @@ class AgentConfig(object):
 
 
   beta = 0.3
+  psc_scale = 0.05
+
   psc_start = int(2.5 * scale)
   max_ep_steps = 10000
   psc_sample_ratio = 0.25
@@ -43,16 +45,6 @@ class AgentConfig(object):
   backend = 'tf'
   env_type = 'simple'
   action_repeat = 1
-
-  # vae_learning_rate = 0.0001
-  # ae_start = 5 * scale
-  # ae_learn_start = scale
-  # ae_avg_loss_interval = scale
-  # ae_memory_size = ae_avg_loss_interval
-  # ae_threshold = 0.01
-  # play_interval = 10 * scale
-  # latent_size = 256
-  # img_scale = 255.
 
 
 class EnvironmentConfig(object):
