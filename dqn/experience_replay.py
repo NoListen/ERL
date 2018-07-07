@@ -159,7 +159,7 @@ batch_size randomly chosen state transitions.
           s_t = imgs[..., :self.phi_length]
           s_t_plus_1 = imgs[..., -self.phi_length:]
         else:
-          imgs = np.transpose(imgs, [2, 0, 1])
-          s_t = imgs[:self.phi_length, ...]
-          s_t_plus_1 = imgs[-self.phi_length:, ...]
+          imgs = np.transpose(imgs, [0, 3, 1, 2])
+          s_t = imgs[:, :self.phi_length, ...]
+          s_t_plus_1 = imgs[:, -self.phi_length:, ...]
         return s_t, s_t_plus_1, actions, rewards, terminal, R

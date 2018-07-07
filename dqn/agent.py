@@ -53,27 +53,34 @@ class Agent(BaseModel):
     start_step = self.step_op.eval()
     start_time = time.time()
 
-    num_game, self.update_count, ep_reward = 0, 0, 0.
+    num_game, self.update_count, ep_reward, ep_psc_reward= 0, 0, 0., 0.
     total_reward, self.total_loss, self.total_q = 0., 0., 0.
     max_avg_ep_reward = 0
-    ep_rewards, actions = [], []
+    ep_rewards, actions, ep_psc_rewards = [], [], []
 
     screen, reward, action, terminal = self.env.new_random_game()
     self.history = init_history(self.history, screen, self.history_length)
 
     for self.step in tqdm(range(start_step, self.max_step), ncols=70, initial=start_step):
       if self.step == self.learn_start:
-        num_game, self.update_count, ep_reward = 0, 0, 0.
+        num_game, self.update_count, ep_reward, ep_psc_reward = 0, 0, 0., 0.
         total_reward, self.total_loss, self.total_q = 0., 0., 0.
-        ep_rewards, actions = [], []
+        ep_rewards, actions, ep_psc_rewards = [], [], []
 
       action = self.predict(self.history.get())
       screen, reward, terminal = self.env.act(action, is_training=True)
       self.ep_steps += 1
 
+      self.psc_reward = self.neural_psc(imresize(screen, (42, 42), order=1), self.step)
+      ep_psc_reward += self.psc_reward * self.psc_scale
+
+      aug_reward = reward
+      if self.step > self.psc_start:
+        aug_reward += self.psc_reward * self.psc_scale
+
       if self.ep_steps > self.max_ep_steps:
         terminal = True
-      self.observe(screen, reward, action, terminal)
+      self.observe(screen, aug_reward, action, terminal)
 
       if terminal:
         num_game += 1
@@ -82,7 +89,8 @@ class Agent(BaseModel):
         self.history = init_history(self.history, screen, self.history_length)
 
         ep_rewards.append(ep_reward)
-        ep_reward = 0.
+        ep_psc_rewards.append(ep_psc_reward)
+        ep_reward, ep_psc_reward  = 0., 0.
       else:
         ep_reward += reward
 
@@ -99,11 +107,12 @@ class Agent(BaseModel):
             max_ep_reward = np.max(ep_rewards)
             min_ep_reward = np.min(ep_rewards)
             avg_ep_reward = np.mean(ep_rewards)
+            avg_ep_psc_reward = np.mean(ep_psc_rewards)
           except:
-            max_ep_reward, min_ep_reward, avg_ep_reward = 0, 0, 0
+            max_ep_reward, min_ep_reward, avg_ep_reward, avg_ep_psc_reward = 0, 0, 0, 0
 
-          print('\navg_r: %.4f, avg_l: %.6f, avg_q: %3.6f, avg_ep_r: %.4f, max_ep_r: %.4f, min_ep_r: %.4f, # game: %d, psc_reward: %d' \
-              % (avg_reward, avg_loss, avg_q, avg_ep_reward, max_ep_reward, min_ep_reward, num_game, self.psc_reward))
+          print('\navg_r: %.4f, avg_l: %.6f, avg_q: %3.6f, avg_ep_r: %.4f, max_ep_r: %.4f, min_ep_r: %.4f, # game: %d, avd_psc_reward: %.4f' \
+              % (avg_reward, avg_loss, avg_q, avg_ep_reward, max_ep_reward, min_ep_reward, num_game, avg_ep_psc_reward))
 
           if max_avg_ep_reward * 0.9 <= avg_ep_reward:
             self.step_assign_op.eval({self.step_input: self.step + 1})
@@ -133,6 +142,7 @@ class Agent(BaseModel):
           ep_reward = 0.
           ep_rewards = []
           actions = []
+          ep_psc_rewards = []
 
   def predict(self, s_t, test=False):
     if test:
@@ -150,13 +160,6 @@ class Agent(BaseModel):
 
   def observe(self, screen, reward, action, terminal):
     self.history.add(screen)
-
-    self.psc_reward = self.neural_psc(imresize(screen, (42, 42), order=1), self.step)
-
-    # sample the reward to avoid Q value explosion
-    if self.step > self.psc_start:
-      reward += self.psc_reward * self.psc_scale
-
     reward = np.clip(reward, self.min_reward, self.max_reward)
     self.memory.add_sample(screen, action, reward, terminal)
 
