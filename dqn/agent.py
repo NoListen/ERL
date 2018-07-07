@@ -16,8 +16,8 @@ from functools import reduce
 from .GatedPixelCNN.func import process_density_images, process_density_input, get_network
 from math import log, exp, pow
 
-def init_history(h, si):
-  for i in range(h.history_length):
+def init_history(h, si, t=4):
+  for i in range(t):
     h.add(si)
   return h
 
@@ -30,7 +30,7 @@ class Agent(BaseModel):
     self.last_play = 0
     self.env = environment
     self.history = History(self.config)
-    self.memory = DataSet(self.config, np.random.RandomState())
+    self.memory = DataSet(self.config, np.random.RandomState(), self.cnn_format)
     self.ep_steps = 0
     with tf.variable_scope('step'):
       self.step_op = tf.Variable(0, trainable=False, name='step')
@@ -59,7 +59,7 @@ class Agent(BaseModel):
     ep_rewards, actions = [], []
 
     screen, reward, action, terminal = self.env.new_random_game()
-    self.history = init_history(self.history, screen)
+    self.history = init_history(self.history, screen, self.history_length)
 
     for self.step in tqdm(range(start_step, self.max_step), ncols=70, initial=start_step):
       if self.step == self.learn_start:
@@ -79,7 +79,7 @@ class Agent(BaseModel):
         num_game += 1
         self.ep_steps = 0
         screen, reward, action, terminal = self.env.new_random_game()
-        self.history = init_history(self.history, screen)
+        self.history = init_history(self.history, screen, self.history_length)
 
         ep_rewards.append(ep_reward)
         ep_reward = 0.
@@ -151,7 +151,7 @@ class Agent(BaseModel):
   def observe(self, screen, reward, action, terminal):
     self.history.add(screen)
 
-    self.psc_reward = self.neural_psc(imresize(screen, (42, 42), order=1), self.step) * self.psc_scale
+    self.psc_reward = self.neural_psc(imresize(screen, (42, 42), order=1), self.step)
 
     # sample the reward to avoid Q value explosion
     if self.step > self.psc_start:
@@ -410,7 +410,7 @@ class Agent(BaseModel):
       screen = screen[18:102, :]
       current_reward = 0
 
-      test_history = init_history(test_history, screen)
+      test_history = init_history(test_history, screen, self.history_length)
 
 
       for t in range(n_step):

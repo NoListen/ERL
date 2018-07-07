@@ -1,5 +1,5 @@
 class AgentConfig(object):
-  scale = 10000
+  scale = 1000
   display = False
 
   max_step = 5000 * scale
@@ -7,7 +7,8 @@ class AgentConfig(object):
 
   batch_size = 32
   random_start = 1
-  cnn_format = 'NCHW'
+  #cnn_format = 'NCHW'
+  cnn_format = 'NHWC'
   discount = 0.99
   target_q_update_step = 1 * scale
 

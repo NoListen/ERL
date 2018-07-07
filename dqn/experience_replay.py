@@ -12,7 +12,7 @@ class DataSet(object):
 actions, and rewards.
 
     """
-    def __init__(self, config, rng):#, data_format="NHWC"):
+    def __init__(self, config, rng, data_format="NHWC"):
         """Construct a DataSet.
 
         Arguments:
@@ -31,7 +31,7 @@ actions, and rewards.
         self.discount = config.discount
         self.phi_length = config.history_length
         self.rng = rng
-        # self.data_format = data_format
+        self.data_format = data_format
 
         # Allocate the circular buffers and indices.
         self.imgs = np.zeros((self.max_steps, self.height, self.width), dtype='uint8')
@@ -155,8 +155,11 @@ batch_size randomly chosen state transitions.
             terminal[count] = self.terminal.take(end_index, mode='wrap')
             R[count] = self.R.take(end_index, mode='wrap')
             count += 1
-
-        s_t = imgs[..., :self.phi_length]
-        s_t_plus_1 = imgs[..., -self.phi_length:]
-
+        if self.data_format == "NHWC":
+          s_t = imgs[..., :self.phi_length]
+          s_t_plus_1 = imgs[..., -self.phi_length:]
+        else:
+          imgs = np.transpose(imgs, [2, 0, 1])
+          s_t = imgs[:self.phi_length, ...]
+          s_t_plus_1 = imgs[-self.phi_length:, ...]
         return s_t, s_t_plus_1, actions, rewards, terminal, R
