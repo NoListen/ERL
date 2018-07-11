@@ -1,5 +1,5 @@
 class AgentConfig(object):
-  scale = 1000
+  scale = 10000
   display = False
 
   max_step = 5000 * scale
@@ -28,15 +28,15 @@ class AgentConfig(object):
   min_delta = -1
   max_delta = 1
 
-  double_q = False
+  double_q = True
   dueling = False
 
   _test_step = 2 * scale
   _save_step = _test_step * 10
 
 
-  beta = 0.3
-  psc_scale = 0.05
+  beta = 0.1
+  psc_scale = 0.1
 
   psc_start = int(2.5 * scale)
   max_ep_steps = 10000
@@ -45,7 +45,7 @@ class AgentConfig(object):
 
   backend = 'tf'
   env_type = 'simple'
-  action_repeat = 1
+  action_repeat = 2
 
 
 class EnvironmentConfig(object):
@@ -54,9 +54,6 @@ class EnvironmentConfig(object):
   screen_width  = 84
   screen_height = 84
 
-  # 42 by 42.
-  # ae_screen_height = 42
-  # ae_screen_width = 42
 
   max_reward = 1.
   min_reward = -1.

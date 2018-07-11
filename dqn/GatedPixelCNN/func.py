@@ -17,7 +17,7 @@ flags.DEFINE_integer("gated_conv_num_layers", 2, "the number of gated conv layer
 flags.DEFINE_integer("gated_conv_num_feature_maps", 16,
                      "the number of input / output feature maps in gated conv layers")
 flags.DEFINE_integer("output_conv_num_feature_maps", 64, "the number of output feature maps in output conv layers")
-flags.DEFINE_integer("q_levels", 8, "the number of quantization levels in the output")
+flags.DEFINE_integer("q_levels", 10, "the number of quantization levels in the output")
 # 4 used in mnist?
 # training
 flags.DEFINE_float("max_epoch", 100000, "maximum # of epochs")
@@ -51,7 +51,7 @@ def preprocess(q_levels):
     def preprocess_fcn(images):
         # Create the target pixels from the image. Quantize the scalar pixel values into q_level indices.
         target_pixels = np.clip(((images * q_levels).astype('int64')), 0, q_levels - 1)  # [N,H,W,C]
-        return (images, target_pixels)
+        return target_pixels
 
     return preprocess_fcn
 

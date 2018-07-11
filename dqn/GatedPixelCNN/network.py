@@ -123,14 +123,14 @@ class Network:
     if with_update:
       _, indexes, target = sess.run([self.train_op, self.target_pixels_loss, self.flattened_output],
                                    feed_dict = {
-                                     self.inputs: images[0],
-                                     self.target_pixels: images[1]
+                                     self.inputs: images,
+                                     self.target_pixels: images
                                    })
     else:
       indexes, target  = sess.run([self.target_pixels_loss, self.flattened_output],
                                   feed_dict = {
-                                    self.inputs: images[0],
-                                     self.target_pixels: images[1]
+                                    self.inputs: images,
+                                     self.target_pixels: images
                                   })
 
     pred_prob = target[self.index_range, indexes]

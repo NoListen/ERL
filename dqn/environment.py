@@ -37,8 +37,8 @@ class Environment(object):
 
   @ property
   def screen(self):
-    screen = imresize(rgb2gray(self._screen), (110, 84))
-    screen = screen[18:102, :]/255.
+    screen = imresize(rgb2gray(self._screen), (84, 84))
+    #screen = screen[18:102, :]
     return screen
 
   @property
