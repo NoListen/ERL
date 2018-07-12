@@ -75,8 +75,12 @@ class Agent(BaseModel):
       screen, reward, terminal = self.env.act(action, is_training=True)
       self.ep_steps += 1
 
+
       screen42x42 = imresize(screen, (42, 42), order=1)
-      self.psc_reward = self.neural_psc(screen42x42, action, self.step)
+      if self.ep_steps > self.history_length: 
+        self.psc_reward = self.neural_psc(screen42x42, action, self.step)
+      else:
+        self.psc_reward = 0
       ep_psc_reward += self.psc_reward * self.bonus_scale
 
       aug_reward = reward
@@ -122,8 +126,8 @@ class Agent(BaseModel):
           except:
             max_ep_reward, min_ep_reward, avg_ep_reward, avg_ep_psc_reward = 0, 0, 0, 0
 
-          print('\navg_r: %.4f, avg_l: %.6f, avg_q: %3.6f, avg_ep_r: %.4f, max_ep_r: %.4f, min_ep_r: %.4f, # game: %d, avd_psc_reward: %.4f' \
-              % (avg_reward, avg_loss, avg_q, avg_ep_reward, max_ep_reward, min_ep_reward, num_game, avg_ep_psc_reward))
+          print('\navg_r: %.4f, avg_l: %.6f, avg_q: %3.6f, avg_ep_r: %.4f, max_ep_r: %.4f, min_ep_r: %.4f, # game: %d, avd_psc_reward: %.4f, avg_ae_loss: %.4f' \
+              % (avg_reward, avg_loss, avg_q, avg_ep_reward, max_ep_reward, min_ep_reward, num_game, avg_ep_psc_reward, self.density_model.avg_ae_loss))
 
           if max_avg_ep_reward * 0.9 <= avg_ep_reward:
             self.step_assign_op.eval({self.step_input: self.step + 1})
