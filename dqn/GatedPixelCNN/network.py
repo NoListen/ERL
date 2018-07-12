@@ -8,8 +8,12 @@ from .utils import *
 logger = getLogger(__name__)
 
 class Network:
+  def __init__(self, scope, *args, **kargs):
+    with tf.variable_scope(scope):
+      self._init(*args, **kargs)
+      self.scope = scope
 
-  def __init__(self, conf, height, width, num_channels, dens_scope, device = "/cpu:0"):
+  def _init(self, conf, height, width, num_channels, device = "/cpu:0"):
     logger.info("Building gated_pixel_cnn starts")
     self._device = device
 
@@ -19,7 +23,6 @@ class Network:
 
     self.inputs = tf.placeholder(tf.float32, [None, height, width, num_channels]) # [N,H,W,C]
     self.target_pixels = tf.placeholder(tf.int64, [None, height, width, num_channels]) # [N,H,W,C] (the index of a one-hot representation of D)
-    self.dens_scope = dens_scope
 
     self.index_range = np.arange(height * width)
 
@@ -60,56 +63,16 @@ class Network:
     self.output = tf.reshape(self.flattened_output, [-1, height, width, num_channels, q_levels]) #shape [N,H,W,C,D], values [probability distribution]
 
     self.optimizer = tf.train.RMSPropOptimizer(conf.learning_rate, conf.decay, conf.momentum, conf.epsilon)
-    self.vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, tf.get_variable_scope().name)
-    #
-    # for i in self.vars:
-    # 	print i.name
-    #
+    self.vars = self.get_trainable_variables()
+
     grads_and_vars = self.optimizer.compute_gradients(self.loss, var_list = self.vars)
     self.new_grads_and_vars = \
         [(tf.clip_by_value(gv[0], -conf.grad_clip, conf.grad_clip), gv[1]) for gv in grads_and_vars]
 
     self.train_op = self.optimizer.apply_gradients(self.new_grads_and_vars)
-    # grads = tf.gradients(self.loss, self.vars)
-    # self.grads, _ = tf.clip_by_global_norm(grads, conf.grad_clip)
 
-    # grads_and_vars = list(zip(self.grads, self.vars))
-    # self.train_op = self.optimizer.apply_gradients(grads_and_vars)
-
-    show_all_variables()
-
+    # show_all_variables()
     logger.info("Building gated_pixel_cnn finished")
-
-  # def apply_gradients(self, target_network):
-  #   self.apply_optim = tf.train.RMSPropOptimizer(self.learning_rate, self.decay, self.momentum, self.epsilon)
-  #   grads_and_vars = list(zip(self.grads, target_network.get_vars()))
-  #   apply_gradients_op = self.apply_optim.apply_gradients(grads_and_vars)
-  #   return apply_gradients_op
-
-  def get_vars(self):
-    return self.vars
-
-  def predict(self, sess, images):
-    '''
-    images # shape [N,H,W,C]
-    returns predicted image # shape [N,H,W,C]
-    '''
-    # self.output shape [NHWC,D]
-    pixel_value_probabilities = sess.run(self.output, {self.inputs: images}) # shape [N,H,W,C,D], values [probability distribution]
-    
-    # argmax or random draw # [NHWC,1]  quantized index - convert back to pixel value    
-    pixel_value_indices = np.argmax(pixel_value_probabilities, 4) # shape [N,H,W,C], values [index of most likely pixel value]
-    pixel_values = np.multiply(pixel_value_indices, ((self.pixel_depth - 1) / (self.q_levels - 1))) #shape [N,H,W,C]
-
-    return pixel_values
-
-  # def test(self, sess, mages, with_update=False):
-  #   if with_update:
-  #     _, cost = sess.run([self.optim, self.loss], 
-  #                             { self.inputs: images[0], self.target_pixels: images[1] })
-  #   else:
-  #     cost = sess.run(self.loss, { self.inputs: images[0], self.target_pixels: images[1] })
-  #   return cost
 
   def generate_from_occluded(self, images, num_generated_images, occlude_start_row):
     samples = np.copy(images[0:num_generated_images,:,:,:])
@@ -134,32 +97,14 @@ class Network:
                                   })
 
     pred_prob = target[self.index_range, indexes]
-
-    # sample = self.generate_samples(sess,  images[0])
-    # # print t
-    # if t > 5000 and not with_update:
-    #   save_images(np.concatenate((images[0], sample), axis=2),
-    #                     42, 42 * 2, 1, 1,
-    #                     directory="pixelcnn/" , prefix="global_t%i" % t)
-    # p = np.prod(pred_prob)
     return pred_prob
 
-
-  def generate_samples(self, sess, image):
-    # samples[:,occlude_start_row:,:,:] = 0.
-
-    next_sample = self.predict(sess, image) / (self.pixel_depth - 1.) # argmax or random draw here
-    # samples[:, i, j, k] = next_sample
-
-    return next_sample
-
-
+  # Used in A3C.
   def sync_from(self, src_netowrk, name=None):
-    src_vars = src_netowrk.get_vars()
-    dst_vars = self.get_vars()
+    src_vars = src_netowrk.get_trainable_variables()
+    dst_vars = self.get_trainable_variables()
 
     sync_ops = []
-
     with tf.device(self._device):
       with tf.op_scope([], name, "GatedPixelCNN") as name:
         for(src_var, dst_var) in zip(src_vars, dst_vars):
@@ -167,3 +112,9 @@ class Network:
           sync_ops.append(sync_op)
 
         return tf.group(*sync_ops, name=name)
+
+  def get_variables(self):
+    return tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, self.scope)
+
+  def get_trainable_variables(self):
+    return tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, self.scope)

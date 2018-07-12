@@ -1,10 +1,17 @@
 import os
 import pprint
 import inspect
-
+import json
 import tensorflow as tf
 
 pp = pprint.PrettyPrinter().pprint
+
+def hash(s):
+  res = 0
+  for i in range(len(s)):
+    res = res*(ord(s[i])+1)
+    res = res%10000 + 123
+  return res
 
 def class_vars(obj):
   return {k:v for k, v in inspect.getmembers(obj)
@@ -61,6 +68,12 @@ class BaseModel(object):
       if not k.startswith('_') and k not in ['display']:
         model_dir += "/%s-%s" % (k, ",".join([str(i) for i in v])
             if type(v) == list else v)
+    model_dir = str(hash(model_dir))
+    import os
+    if not os.path.exists("args"):
+      os.mkdir("args")
+    with open("args/"+model_dir+'.json', "w") as f:
+      json.dump(self._attrs, f, indent=2, sort_keys=True)
     return model_dir + '/'
 
   @property

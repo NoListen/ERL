@@ -2,10 +2,7 @@ import logging
 logging.basicConfig(format="[%(asctime)s] %(message)s", datefmt="%m-%d %H:%M:%S")
 
 import os
-import sys
-import urllib
 import pprint
-import tarfile
 import tensorflow as tf
 
 import datetime

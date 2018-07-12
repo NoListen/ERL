@@ -1,5 +1,5 @@
 class AgentConfig(object):
-  scale = 10000
+  scale = 2000
   display = False
 
   max_step = 5000 * scale
@@ -34,14 +34,7 @@ class AgentConfig(object):
   _test_step = 2 * scale
   _save_step = _test_step * 10
 
-
-  beta = 0.1
-  psc_scale = 0.1
-
-  psc_start = int(2.5 * scale)
   max_ep_steps = 10000
-  psc_sample_ratio = 0.25
-
 
   backend = 'tf'
   env_type = 'simple'
@@ -59,15 +52,50 @@ class EnvironmentConfig(object):
   min_reward = -1.
 
 class DQNConfig(AgentConfig, EnvironmentConfig):
-  model = ''
   pass
 
-def get_config(args):
-  config = DQNConfig
+class PixelCNNConfig(AgentConfig, EnvironmentConfig):
+  beta = 0.1
+  psc_scale = 0.1
 
-  if args.use_gpu:
-    config.cnn_format = 'NHWC'
+  psc_start = int(2.5 * AgentConfig.scale)
+  psc_sample_ratio = 0.25
+
+class AEConfig(AgentConfig, EnvironmentConfig):
+  beta = 0.1
+
+  bonus_scale = 0.1
+  ae_start = 5 * AgentConfig.scale
+  ae_learn_start = AgentConfig.scale
+  ae_avg_loss_interval = AgentConfig.scale
+  ae_memory_size = ae_avg_loss_interval
+  ae_threshold = 0.01
+  latent_size = 256
+  n_action = 18 # ha
+  # rd coded
+
+  ae_screen_width = 42
+  ae_screen_height = 42
+
+  ae_batch_size = 64
+  ae_train_steps = 32
+
+  ae_learning_rate = 0.0001
+
+  ae_model_path = "ae_model"
+  ae_save_step = 5*Agent.Config + 1
+
+def get_config(args):
+  if args.mode == "pixelcnn":
+    config = PixelCNNConfig
+  elif args.mode == "autoencoder":
+    config = AEConfig
   else:
-    config.cnn_format = 'NCHW'
+    config = DQNConfig
+
+  # if args.use_gpu:
+  #   config.cnn_format = 'NHWC'
+  # else:
+  #   config.cnn_format = 'NCHW'
 
   return config

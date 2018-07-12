@@ -10,67 +10,118 @@ import numpy as np
 from dqn.utils import save_npy, load_npy
 
 
-class SimpleReplayMemory:
-    def __init__(self, config):
+# At first fill the replay buffer, then sample to learn.
+import numpy as np
 
-        self.cnn_format = config.cnn_format
-        self.memory_size = config.ae_memory_size
-        self.screens = np.empty((self.memory_size, config.ae_screen_height, config.ae_screen_width), dtype=np.float16)
-        self.dims = (config.ae_screen_height, config.ae_screen_width)
-        self.batch_size = config.batch_size
-        self.count = 0
-        self.current = 0
+class SimpleDataSet(object):
+    """A replay memory consisting of circular buffers for observed images,
+actions, and rewards.
 
-        # pre-allocate prestates and poststates for minibatch
-        self.states = np.empty((self.batch_size, 1) + self.dims, dtype=np.float16)
+    """
+    def __init__(self, config, rng, data_format="NHWC"):
+        """Construct a DataSet.
 
-    def add(self, screen):
-        assert screen.shape == self.dims
-        # NB! screen is post-state, after action and reward
-        self.screens[self.current, ...] = screen
-        self.count = max(self.count, self.current + 1)
-        self.current = (self.current + 1) % self.memory_size
+        Arguments:
+            width, height - image size
+            max_steps - the number of time steps to store
+            phi_length - number of images to concatenate into a state
+            rng - initialized numpy random number generator, used to
+            choose random minibatches
 
-    def getState(self, index):
-        assert self.count > 0, "replay memory is empy, use at least --random_steps 1"
-        # normalize index to expected range, allows negative indexes
-        index %= self.count
-        # if is not in the beginning of matrix
-        return self.screens[index, ...]
+        """
+        # TODO: Specify capacity in number of state transitions, not
 
-    def sample(self):
-        # memory must include poststate, prestate and history
-        assert self.count > self.batch_size
-        # sample random indexes
-        indexes = []
-        while len(indexes) < self.batch_size:
-            # find random index
-            while True:
-                # sample one index (ignore states wraping over
-                index = random.randint(0, self.count - 1)
-                # if wraps over current pointer, then get new one
-                # if wraps over episode end, then get new one
-                # NB! poststate (last screen) can be terminal state!
-                # otherwise use this index
-                break
+        self.width = config.ae_screen_width
+        self.height = config.ae_screen_height
+        self.max_steps = config.ae_memory_size
 
-            # NB! having index first is fastest in C-order matrices
-            # for i in range(self.batch_size):
-            self.states[len(indexes), ...] = self.getState(index)
-            indexes.append(index)
+        self.phi_length = config.history_length
+        self.rng = rng
+        self.data_format = data_format
 
-        if self.cnn_format == 'NHWC':
-            return self.states.reshape((-1,) + self.dims+(1,))
-        return self.states
+        # the memory to store is in float format.
+        self.imgs = np.zeros((self.max_steps, self.height, self.width), dtype='float32')
+        self.actions = np.zeros(self.max_steps, dtype='int32')
+        self.terminal = np.zeros(self.max_steps, dtype='bool')
 
-    def train_samples(self):
-        index = 0
-        while index < self.count:
-            self.states = self.screens[index:min(index+self.batch_size, self.count), ...] # batch size at first.
-            index += self.batch_size
-            if self.cnn_format == "NHWC":
-                self.states = self.states.reshape((-1,) + self.dims+(1,))
-                yield self.states
-            yield self.states
+        self.bottom = 0
+        self.top = 0
+        self.size = 0
+
+    def add_sample(self, img, action, terminal):
+        """Add a time step record.
+
+        Arguments:
+            img -- observed image
+            action -- action chosen by the agent
+            reward -- reward received after taking the action
+            terminal -- boolean indicating whether the episode ended
+            after this time step
+        """
+        self.imgs[self.top] = img
+        self.actions[self.top] = action
+        self.terminal[self.top] = terminal
+
+        if self.size == self.max_steps:
+            self.bottom = (self.bottom + 1) % self.max_steps
+        else:
+            self.size += 1
+        self.top = (self.top + 1) % self.max_steps
 
 
+    def __len__(self):
+        """Return an approximate count of stored state transitions."""
+        # TODO: Properly account for indices which can't be used, as in
+        # random_batch's check.
+        return max(0, self.size - self.phi_length)
+
+    def last_phi(self):
+        """Return the most recent phi (sequence of image frames)."""
+        indexes = np.arange(self.top - self.phi_length, self.top)
+        phi = np.transpose(self.imgs.take(indexes, axis=0, mode='wrap'), [1, 2, 0])
+
+        return phi
+
+
+    def random_batch(self, batch_size):
+        """Return corresponding imgs, actions, rewards, and terminal status for
+batch_size randomly chosen state transitions.
+
+        """
+        # Allocate the response.
+
+        imgs = np.zeros((batch_size,
+                         self.height,
+                         self.width,
+                         self.phi_length + 1),
+                        dtype='float32')
+        actions = np.zeros(batch_size, dtype='int32')
+
+        count = 0
+        while count < batch_size:
+            # Randomly choose a time step from the replay memory.
+            # index = self.rng.randint(self.bottom,
+            #                          self.bottom + self.size - self.phi_length)
+            index = self.rng.randint(0, self.size - self.phi_length)
+
+            # Both the before and after states contain phi_length
+            # frames, overlapping except for the first and last.
+            all_indices = np.arange(index, index + self.phi_length + 1)
+            end_index = index + self.phi_length - 1
+
+
+            if np.any(self.terminal.take(all_indices[:-1], mode='wrap')):
+                continue
+
+            # Add the state transition to the response.
+            imgs[count] = np.transpose(self.imgs.take(all_indices, axis=0, mode='wrap'), [1, 2, 0])
+            actions[count] = self.actions.take(end_index, mode='wrap')
+            count += 1
+        if self.data_format == "NHWC":
+          s_t = imgs[..., :self.phi_length]
+          s_t_plus_1 = imgs[..., -1]
+        else:
+          imgs = np.transpose(imgs, [0, 3, 1, 2])
+          s_t = imgs[:, :self.phi_length, ...]
+          s_t_plus_1 = imgs[:, -1, ...]
+        return s_t, s_t_plus_1, actions

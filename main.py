@@ -1,7 +1,7 @@
 import random
 import tensorflow as tf
 import numpy as np
-from dqn.agent import Agent
+# from dqn.agent import Agent
 from dqn.environment import GymEnvironment, SimpleGymEnvironment
 from config import get_config
 import argparse
@@ -16,6 +16,7 @@ def main(_):
   parser.add_argument('--seed', help='RNG seed', type=int, default=123)
   parser.add_argument('--test', action="store_true")
   parser.add_argument("--use-gpu", action="store_true")
+  parser.add_argument("--mode", help="Bonus mode", default="pixelcnn")
   args = parser.parse_args()
 
   config = tf.ConfigProto(allow_soft_placement=True, log_device_placement=False)
@@ -32,7 +33,13 @@ def main(_):
     if not tf.test.is_gpu_available() and args.use_gpu:
       raise Exception("use_gpu flag is true when no GPUs are available")
 
-    agent = Agent(config, env, sess)
+    if args.mode == "pixelcnn":
+      from dqn.agent import Agent
+      agent = Agent(config, env, sess)
+    else:
+      from dqn.agent_model import Agent
+      agent = Agent(config, env, sess)
+
     print("CNN format", config.cnn_format)
     if not args.test:
       print("training ...")
