@@ -61,9 +61,9 @@ class Agent(BaseModel):
     max_avg_ep_reward = 0
     ep_rewards, actions, ep_psc_rewards = [], [], []
 
-    screen, reward, action, terminal = self.env.new_random_game()
-    screen42x42 = imresize(screen, (42, 42), order=1)
-    self.history = init_history(self.history, screen, self.history_length)
+    last_screen, reward, action, terminal = self.env.new_random_game()
+    last_screen42x42 = imresize(last_screen, (42, 42), order=1)
+    self.history = init_history(self.history, last_screen, self.history_length)
 
     for self.step in tqdm(range(start_step, self.max_step), ncols=70, initial=start_step):
       if self.step == self.learn_start:
@@ -73,14 +73,16 @@ class Agent(BaseModel):
 
       action = self.predict(self.history.get())
       screen, reward, terminal = self.env.act(action, is_training=True)
+      screen42x42 = imresize(screen, (42, 42), order=1)
+
       self.ep_steps += 1
 
-
-      screen42x42 = imresize(screen, (42, 42), order=1)
-      if self.ep_steps > self.history_length: 
+      if self.ep_steps > self.history_length:
+        # evaluate the new transition.
         self.psc_reward = self.neural_psc(screen42x42, action, self.step)
       else:
         self.psc_reward = 0
+
       ep_psc_reward += self.psc_reward * self.bonus_scale
 
       aug_reward = reward
@@ -90,14 +92,21 @@ class Agent(BaseModel):
       if self.ep_steps > self.max_ep_steps:
         terminal = True
 
-      self.density_model.memory.add_sample(screen42x42, action, terminal) # To train later.
-      self.observe(screen, aug_reward, action, terminal)
+      self.density_model.memory.add_sample(last_screen42x42, action, terminal) # To train later.
+      self.observe(last_screen, aug_reward, action, terminal)
+
+      # Update
+      last_screen42x42 = screen42x42
+      last_screen = screen
 
       if terminal:
         num_game += 1
         self.ep_steps = 0
-        screen, reward, action, terminal = self.env.new_random_game()
-        self.history = init_history(self.history, screen, self.history_length)
+
+        last_screen, reward, action, terminal = self.env.new_random_game()
+        last_screen42x42 = imresize(last_screen, (42, 42), order=1)
+
+        self.history = init_history(self.history, last_screen, self.history_length)
 
         if self.step > self.ae_learn_start:
           for k in range(self.ae_train_steps):
