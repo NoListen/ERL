@@ -83,7 +83,7 @@ class AEConfig(AgentConfig, EnvironmentConfig):
   ae_learning_rate = 0.0001
 
   ae_model_path = "ae_model"
-  ae_save_step = 5*Agent.Config + 1
+  ae_save_step = 5*AgentConfig.scale + 1
 
 def get_config(args):
   if args.mode == "pixelcnn":

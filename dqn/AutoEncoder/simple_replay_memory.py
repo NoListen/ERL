@@ -82,6 +82,10 @@ actions, and rewards.
 
         return phi
 
+    def last_action(self):
+        index = (self.top - 1 + self.size) % self.size
+        return self.actions[index]
+
 
     def random_batch(self, batch_size):
         """Return corresponding imgs, actions, rewards, and terminal status for

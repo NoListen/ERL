@@ -150,6 +150,13 @@ class AutoEncoder(BaseModel):
 
         return np.maximum(gen_loss/self.avg_ae_loss-1, 0)
 
+    def predict(self):
+        s_t = self.memory.last_phi()
+        action = self.memory.last_action()
+        oh_action = onehot_actions([action])
+        g = self.sess.run(self.g, feed_dict={self.s_t: s_t[None], self.action: oh_action })
+        return g
+
     def get_variables(self):
         return tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, self.scope)
 

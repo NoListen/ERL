@@ -58,8 +58,8 @@ class Agent(BaseModel):
     max_avg_ep_reward = 0
     ep_rewards, actions, ep_psc_rewards = [], [], []
 
-    screen, reward, action, terminal = self.env.new_random_game()
-    self.history = init_history(self.history, screen, self.history_length)
+    last_screen, reward, action, terminal = self.env.new_random_game()
+    self.history = init_history(self.history, last_screen, self.history_length)
 
     for self.step in tqdm(range(start_step, self.max_step), ncols=70, initial=start_step):
       if self.step == self.learn_start:
@@ -80,13 +80,17 @@ class Agent(BaseModel):
 
       if self.ep_steps > self.max_ep_steps:
         terminal = True
-      self.observe(screen, aug_reward, action, terminal)
+      self.observe(last_screen, aug_reward, action, terminal)
+
+
+      last_screen = screen
+
 
       if terminal:
         num_game += 1
         self.ep_steps = 0
-        screen, reward, action, terminal = self.env.new_random_game()
-        self.history = init_history(self.history, screen, self.history_length)
+        last_screen, reward, action, terminal = self.env.new_random_game()
+        self.history = init_history(self.history, last_screen, self.history_length)
 
         ep_rewards.append(ep_reward)
         ep_psc_rewards.append(ep_psc_reward)
