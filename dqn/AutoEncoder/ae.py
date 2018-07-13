@@ -13,8 +13,8 @@ from ..utils import onehot_actions
 class AutoEncoder(BaseModel):
     def __init__(self, name, sess, config):
         with tf.variable_scope(name):
+            self.scope = tf.get_variable_scope().name
             super(AutoEncoder, self).__init__(config)
-            self.scope = name
             self._init(sess, config)
 
     def _init(self,

@@ -10,8 +10,8 @@ logger = getLogger(__name__)
 class Network:
   def __init__(self, scope, *args, **kargs):
     with tf.variable_scope(scope):
+      self.scope =  tf.get_variable_scope().name
       self._init(*args, **kargs)
-      self.scope = scope
 
   def _init(self, conf, height, width, num_channels, device = "/cpu:0"):
     logger.info("Building gated_pixel_cnn starts")

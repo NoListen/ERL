@@ -68,7 +68,7 @@ class Agent(BaseModel):
         ep_rewards, actions, ep_psc_rewards = [], [], []
 
       action = self.predict(self.history.get())
-      screen, reward, terminal = self.env.act(action, is_training=True)
+      screen, reward, terminal = self.env.act(action)
       self.ep_steps += 1
 
       self.psc_reward = self.neural_psc(imresize(screen, (42, 42), order=1), self.step)

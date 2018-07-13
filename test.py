@@ -19,9 +19,9 @@ def set_random_seed(seed):
 
 
 def concat2imgs(img1, img2):
-    img = np.zeros((84, 42))
-    img[:42, :] = img1
-    img[42:, :] = img2
+    img = np.zeros((42, 90))
+    img[:, :42] = img1
+    img[:, 48:] = img2
     return img
 
 def saveimg(img, step, prefix):
@@ -81,7 +81,7 @@ def main(_):
         prefix = prefix + 'img'
         while True:
             action = pi.action(last_screen)
-            screen, reward, terminal = env.act(action, is_training=True)
+            screen, reward, terminal = env.act(action)
             screen42x42 = imresize(screen, (42, 42), order=1)
 
             oh_action = np.zeros(na)
