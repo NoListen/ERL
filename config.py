@@ -1,5 +1,5 @@
 class AgentConfig(object):
-  scale = 2000
+  scale = 10000
   display = False
 
   max_step = 5000 * scale
@@ -36,9 +36,8 @@ class AgentConfig(object):
 
   max_ep_steps = 10000
 
-  backend = 'tf'
-  env_type = 'simple'
-  action_repeat = 2
+  env_type = 'skip'
+  action_repeat = 4
 
 
 class EnvironmentConfig(object):

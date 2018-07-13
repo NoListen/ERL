@@ -46,10 +46,6 @@ class Environment(object):
     return self.env.action_space.n
 
   @property
-  def lives(self):
-    return self.env.ale.lives()
-
-  @property
   def state(self):
     return self.screen, self.reward, self.terminal
 
@@ -64,17 +60,12 @@ class GymEnvironment(Environment):
   def __init__(self, config):
     super(GymEnvironment, self).__init__(config)
 
-  def act(self, action, is_training=True):
+  def act(self, action):
     cumulated_reward = 0
-    start_lives = self.lives
 
     for _ in range(self.action_repeat):
       self._step(action)
       cumulated_reward = cumulated_reward + self.reward
-
-      if is_training and start_lives > self.lives:
-        cumulated_reward -= 1
-        self.terminal = True
 
       if self.terminal:
         break
