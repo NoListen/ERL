@@ -21,6 +21,8 @@ def init_history(h, si, t=4):
     h.add(si)
   return h
 
+
+
 class Agent(BaseModel):
   def __init__(self, config, environment, sess):
     super(Agent, self).__init__(config)
@@ -80,7 +82,7 @@ class Agent(BaseModel):
 
       if self.ep_steps > self.max_ep_steps:
         terminal = True
-      self.observe(last_screen, aug_reward, action, terminal)
+      self.observe(last_screen, screen, aug_reward, action, terminal)
 
 
       last_screen = screen
@@ -162,10 +164,10 @@ class Agent(BaseModel):
 
     return action
 
-  def observe(self, screen, reward, action, terminal):
+  def observe(self, last_screen, screen, reward, action, terminal):
     self.history.add(screen)
     reward = np.clip(reward, self.min_reward, self.max_reward)
-    self.memory.add_sample(screen, action, reward, terminal)
+    self.memory.add_sample(last_screen, action, reward, terminal)
 
     if self.step > self.learn_start:
       if self.step % self.train_frequency == 0:

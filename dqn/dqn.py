@@ -13,21 +13,22 @@ from .ops import linear, conv2d, clipped_error
 from .utils import get_time, save_pkl, load_pkl
 from .utils import rgb2gray, imresize
 from functools import reduce
-from .AutoEncoder.ae import AutoEncoder
-from .utils import saveToFlat
+from .GatedPixelCNN.func import process_density_images, process_density_input, get_network
+from math import log, exp, pow
 
 def init_history(h, si, t=4):
   for i in range(t):
     h.add(si)
   return h
 
+
+
 class Agent(BaseModel):
   def __init__(self, config, environment, sess):
     super(Agent, self).__init__(config)
     self.sess = sess
     self.weight_dir = 'weights'
-
-    self.density_model = AutoEncoder("ae", sess, config) # train after each batch
+    self.density_model = get_network("density")
     self.last_play = 0
     self.env = environment
     self.history = History(self.config)
@@ -40,17 +41,15 @@ class Agent(BaseModel):
 
     self.build_dqn()
 
-  def neural_psc(self, s_t_plus_1, action, step):
-    oh_action = np.zeros(self.n_action)
-    oh_action[action] = 1
-    loss_ratio = self.density_model.evaluate_sample(s_t_plus_1[None], oh_action[None])
+  def neural_psc(self, frame, step):
+    last_frame = process_density_images(frame)
+    density_input = process_density_input(last_frame)
 
-    if step % self.ae_save_step == 0:
-      import os
-      if not os.path.exists(self.ae_model_path):
-        os.mkdir(self.ae_model_path)
-      saveToFlat(self.density_model.get_variables(), self.ae_model_path+"/%i.p" % self.step)
-    return loss_ratio[0]
+    prob = self.density_model.prob_evaluate(self.sess, density_input, True) + 1e-8
+    prob_dot = self.density_model.prob_evaluate(self.sess, density_input) + 1e-8
+    pred_gain = np.sum(np.log(prob_dot) - np.log(prob))
+    psc_reward = pow((exp(0.1*pow(step + 1, -0.5) * max(0, pred_gain)) - 1), 0.5)
+    return psc_reward
 
   def train(self):
     start_step = self.step_op.eval()
@@ -62,7 +61,6 @@ class Agent(BaseModel):
     ep_rewards, actions, ep_psc_rewards = [], [], []
 
     last_screen, reward, action, terminal = self.env.new_random_game()
-    last_screen42x42 = imresize(last_screen, (42, 42), order=1)
     self.history = init_history(self.history, last_screen, self.history_length)
 
     for self.step in tqdm(range(start_step, self.max_step), ncols=70, initial=start_step):
@@ -73,44 +71,28 @@ class Agent(BaseModel):
 
       action = self.predict(self.history.get())
       screen, reward, terminal = self.env.act(action)
-      screen42x42 = imresize(screen, (42, 42), order=1)
-
       self.ep_steps += 1
 
-      if self.ep_steps > self.history_length:
-        # evaluate the new transition.
-        self.psc_reward = self.neural_psc(screen42x42, action, self.step)
-      else:
-        self.psc_reward = 0
-
-      ep_psc_reward += self.psc_reward * self.bonus_scale
+      self.psc_reward = self.neural_psc(imresize(screen, (42, 42), order=1), self.step)
+      ep_psc_reward += self.psc_reward * self.psc_scale
 
       aug_reward = reward
-      if self.step > self.ae_start:
-        aug_reward += self.psc_reward * self.bonus_scale
+      if self.step > self.psc_start:
+        aug_reward += self.psc_reward * self.psc_scale
 
       if self.ep_steps > self.max_ep_steps:
         terminal = True
+      self.observe(last_screen, aug_reward, action, terminal)
 
-      self.density_model.memory.add_sample(last_screen42x42, action, terminal) # To train later.
-      self.observe(last_screen, screen, aug_reward, action, terminal) # update history and add samples to data
 
-      # Update
-      last_screen42x42 = screen42x42
       last_screen = screen
+
 
       if terminal:
         num_game += 1
         self.ep_steps = 0
-
         last_screen, reward, action, terminal = self.env.new_random_game()
-        last_screen42x42 = imresize(last_screen, (42, 42), order=1)
-
         self.history = init_history(self.history, last_screen, self.history_length)
-
-        if self.step > self.ae_learn_start:
-          for k in range(self.ae_train_steps):
-            self.density_model.ae_train_mini_batch(self.step, self.ae_batch_size)
 
         ep_rewards.append(ep_reward)
         ep_psc_rewards.append(ep_psc_reward)
@@ -135,8 +117,8 @@ class Agent(BaseModel):
           except:
             max_ep_reward, min_ep_reward, avg_ep_reward, avg_ep_psc_reward = 0, 0, 0, 0
 
-          print('\navg_r: %.4f, avg_l: %.6f, avg_q: %3.6f, avg_ep_r: %.4f, max_ep_r: %.4f, min_ep_r: %.4f, # game: %d, avd_psc_reward: %.4f, avg_ae_loss: %.4f' \
-              % (avg_reward, avg_loss, avg_q, avg_ep_reward, max_ep_reward, min_ep_reward, num_game, avg_ep_psc_reward, self.density_model.avg_ae_loss))
+          print('\navg_r: %.4f, avg_l: %.6f, avg_q: %3.6f, avg_ep_r: %.4f, max_ep_r: %.4f, min_ep_r: %.4f, # game: %d, avd_psc_reward: %.4f' \
+              % (avg_reward, avg_loss, avg_q, avg_ep_reward, max_ep_reward, min_ep_reward, num_game, avg_ep_psc_reward))
 
           if max_avg_ep_reward * 0.9 <= avg_ep_reward:
             self.step_assign_op.eval({self.step_input: self.step + 1})
@@ -182,10 +164,10 @@ class Agent(BaseModel):
 
     return action
 
-  def observe(self, last_screen, screen, reward, action, terminal):
+  def observe(self, screen, reward, action, terminal):
     self.history.add(screen)
     reward = np.clip(reward, self.min_reward, self.max_reward)
-    self.memory.add_sample(last_screen, action, reward, terminal)
+    self.memory.add_sample(screen, action, reward, terminal)
 
     if self.step > self.learn_start:
       if self.step % self.train_frequency == 0:
