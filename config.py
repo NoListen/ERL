@@ -58,7 +58,10 @@ class PixelCNNConfig(AgentConfig, EnvironmentConfig):
   psc_scale = 0.1
 
   psc_start = int(2.5 * AgentConfig.scale)
-  psc_sample_ratio = 0.25
+
+class TopPixelCNNConfig(PixelCNNConfig):
+  bonus_reserve = 5
+
 
 class AEConfig(AgentConfig, EnvironmentConfig):
   beta = 0.1
@@ -89,6 +92,8 @@ def get_config(args):
     config = PixelCNNConfig
   elif args.mode == "autoencoder":
     config = AEConfig
+  elif args.mode == "top-pixelcnn":
+    config = TopPixelCNNConfig
   else:
     config = DQNConfig
 

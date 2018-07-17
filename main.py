@@ -36,9 +36,14 @@ def main(_):
     if args.mode == "pixelcnn":
       from dqn.agent import Agent
       agent = Agent(config, env, sess)
-    else:
+    elif args.mode == "autoencoder":
       from dqn.agent_model import Agent
       agent = Agent(config, env, sess)
+    elif args.mode == "top-pixelcnn":
+      from dqn.agent_top import Agent
+      agent = Agent(config, env, sess)
+    else:
+      raise ValueError("No such mode")
 
     print("CNN format", config.cnn_format)
     if not args.test:
