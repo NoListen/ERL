@@ -36,7 +36,7 @@ class Agent(BaseModel):
     self.ep_steps = 0
 
     self.ep_trans_cache = []
-    self.ep_psc_rewards = []
+    self.psc_rewards = []
 
     with tf.variable_scope('step'):
       self.step_op = tf.Variable(0, trainable=False, name='step')
@@ -89,15 +89,16 @@ class Agent(BaseModel):
         num_game += 1
         self.ep_steps = 0
 
-        ep_length = len(self.ep_psc_rewards)
+        ep_length = len(self.psc_rewards)
+        ep_psc_reward = 0
 
         # Support preserve the rewards.
-        if self.ep_length > self.bonus_reserve:
-          ep_prs = np.array(ep_psc_rewards)
+        if ep_length > self.bonus_reserve:
+          ep_prs = np.array(self.psc_rewards)
           ep_prs_rank = ep_prs.argsort()
           zero_idx = ep_prs_rank[:-self.bonus_reserve]
           ep_prs[zero_idx] = 0
-
+          ep_psc_reward = np.sum(ep_prs)
           for i in range(ep_length):
             t = self.ep_trans_cache[i]
             self.memory.add_sample(t[0], t[1], t[2] + ep_prs[i], t[3])
@@ -105,9 +106,8 @@ class Agent(BaseModel):
           for t in self.ep_trans_cache:
             self.memory.add_sample(*t)
 
-
         # Clean it.
-        self.ep_psc_rewards = []
+        self.psc_rewards = []
         self.ep_trans_cache = []
 
         last_screen, reward, action, terminal = self.env.new_random_game()
@@ -136,7 +136,7 @@ class Agent(BaseModel):
           except:
             max_ep_reward, min_ep_reward, avg_ep_reward, avg_ep_psc_reward = 0, 0, 0, 0
 
-          print('\navg_r: %.4f, avg_l: %.6f, avg_q: %3.6f, avg_ep_r: %.4f, max_ep_r: %.4f, min_ep_r: %.4f, # game: %d, avd_psc_reward: %.4f' \
+          print('\navg_r: %.4f, avg_l: %.6f, avg_q: %3.6f, avg_ep_r: %.4f, max_ep_r: %.4f, min_ep_r: %.4f, # game: %d, avg_psc_reward: %.4f' \
               % (avg_reward, avg_loss, avg_q, avg_ep_reward, max_ep_reward, min_ep_reward, num_game, avg_ep_psc_reward))
 
           if max_avg_ep_reward * 0.9 <= avg_ep_reward:
@@ -186,13 +186,13 @@ class Agent(BaseModel):
   def observe(self, last_screen, screen, reward, action, terminal):
     self.history.add(screen)
     reward = np.clip(reward, self.min_reward, self.max_reward)
-    screen42x42 = imresize(screen, (42, 42), order=1)
+    screen42x42 = imresize(screen/self.img_scale, (42, 42), order=1)
     psc_reward = self.neural_psc(screen42x42, self.step)
 
     trans = (last_screen, action, reward, terminal)
     if self.step > self.psc_start:
       self.ep_trans_cache.append(trans)
-      self.ep_psc_rewards.append(psc_reward) # TO BE ADDED LATER.
+      self.psc_rewards.append(psc_reward) # TO BE ADDED LATER.
     else:
       self.memory.add_sample(*trans)
 

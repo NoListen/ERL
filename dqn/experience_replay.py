@@ -34,7 +34,7 @@ actions, and rewards.
         self.data_format = data_format
 
         # Allocate the circular buffers and indices.
-        self.imgs = np.zeros((self.max_steps, self.height, self.width), dtype='uint8')
+        self.imgs = np.zeros((self.max_steps, self.height, self.width), dtype='float32')
         self.actions = np.zeros(self.max_steps, dtype='int32')
         self.rewards = np.zeros(self.max_steps, dtype=floatX)
         self.terminal = np.zeros(self.max_steps, dtype='bool')
@@ -116,7 +116,7 @@ batch_size randomly chosen state transitions.
                          self.height,
                          self.width,
                          self.phi_length + 1),
-                        dtype='uint8')
+                        dtype='float32')
 
         actions = np.zeros(batch_size, dtype='int32')
         rewards = np.zeros(batch_size, dtype=floatX)

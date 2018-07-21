@@ -62,7 +62,7 @@ class Agent(BaseModel):
     ep_rewards, actions, ep_psc_rewards = [], [], []
 
     last_screen, reward, action, terminal = self.env.new_random_game()
-    last_screen42x42 = imresize(last_screen, (42, 42), order=1)
+    last_screen42x42 = imresize(last_screen/self.img_scale, (42, 42), order=1)
     self.history = init_history(self.history, last_screen, self.history_length)
 
     for self.step in tqdm(range(start_step, self.max_step), ncols=70, initial=start_step):
@@ -73,7 +73,7 @@ class Agent(BaseModel):
 
       action = self.predict(self.history.get())
       screen, reward, terminal = self.env.act(action)
-      screen42x42 = imresize(screen, (42, 42), order=1)
+      screen42x42 = imresize(screen/self.img_scale, (42, 42), order=1)
 
       self.ep_steps += 1
 
@@ -104,7 +104,7 @@ class Agent(BaseModel):
         self.ep_steps = 0
 
         last_screen, reward, action, terminal = self.env.new_random_game()
-        last_screen42x42 = imresize(last_screen, (42, 42), order=1)
+        last_screen42x42 = imresize(last_screen/self.img_scale, (42, 42), order=1)
 
         self.history = init_history(self.history, last_screen, self.history_length)
 
@@ -418,7 +418,7 @@ class Agent(BaseModel):
                                       {self.summary_placeholders[tag]: value for tag, value in tag_dict.items()})
     for summary_str in summary_str_lists:
       self.writer.add_summary(summary_str, self.step)
-
+"""
   def play(self, n_step=10000, n_episode=100, test_ep=None, render=False):
     if test_ep == None:
       test_ep = self.ep_end
@@ -470,3 +470,5 @@ class Agent(BaseModel):
     if not self.display:
       monitor.close()
       #gym.upload(gym_dir, writeup='https://github.com/devsisters/DQN-tensorflow', api_key='')
+
+"""

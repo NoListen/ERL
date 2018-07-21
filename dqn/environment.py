@@ -16,6 +16,9 @@ class Environment(object):
     self._screen = None
     self.reward = 0
     self.terminal = True
+    self.img_scale = config.img_scale
+    self.clip = config.clip
+
 
   def new_game(self, from_random_game=False):
     self._screen = self.env.reset()
@@ -37,8 +40,11 @@ class Environment(object):
 
   @ property
   def screen(self):
-    screen = imresize(rgb2gray(self._screen), (84, 84))
-    #screen = screen[18:102, :]
+    if self.clip:
+      screen = imresize(rgb2gray(self._screen), (110, 84))*self.img_scale
+      screen = screen[18:102, :]
+    else:
+      screen = imresize(rgb2gray(self._screen), (84, 84))*self.img_scale
     return screen
 
   @property

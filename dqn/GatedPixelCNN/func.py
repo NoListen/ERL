@@ -52,7 +52,7 @@ def process_density_images(image):
 
 def process_density_input(samples):
     # NHWC thx!
-    q_func = preprocess(8)
+    q_func = preprocess(conf.q_levels)
     return q_func(samples)
 
 def get_network(scope):

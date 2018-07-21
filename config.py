@@ -31,7 +31,7 @@ class AgentConfig(object):
   double_q = True
   dueling = False
 
-  _test_step = 2 * scale
+  _test_step = 5 * scale
   _save_step = _test_step * 10
 
   max_ep_steps = 10000
@@ -39,6 +39,8 @@ class AgentConfig(object):
   env_type = 'skip'
   action_repeat = 4
 
+  img_scale = 255.
+  clip = False
 
 class EnvironmentConfig(object):
   env_name = 'MontezumaRevenge-v0'

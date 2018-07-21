@@ -73,7 +73,7 @@ class Agent(BaseModel):
       screen, reward, terminal = self.env.act(action)
       self.ep_steps += 1
 
-      self.psc_reward = self.neural_psc(imresize(screen, (42, 42), order=1), self.step)
+      self.psc_reward = self.neural_psc(imresize(screen/self.img_scale, (42, 42), order=1), self.step)
       ep_psc_reward += self.psc_reward * self.psc_scale
 
       aug_reward = reward
@@ -400,7 +400,7 @@ class Agent(BaseModel):
                                       {self.summary_placeholders[tag]: value for tag, value in tag_dict.items()})
     for summary_str in summary_str_lists:
       self.writer.add_summary(summary_str, self.step)
-
+"""
   def play(self, n_step=10000, n_episode=100, test_ep=None, render=False):
     if test_ep == None:
       test_ep = self.ep_end
@@ -451,4 +451,4 @@ class Agent(BaseModel):
 
     if not self.display:
       monitor.close()
-      #gym.upload(gym_dir, writeup='https://github.com/devsisters/DQN-tensorflow', api_key='')
+"""
