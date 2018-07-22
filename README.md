@@ -17,6 +17,7 @@ or
 
 The autoencoder mode is not verified yet.
 
+![top-pixelcnn](https://github.com/nolisten/ERL/raw/master/data/5873.png "Top-PixelCNN")
 
 # References
 - [PixelCNN++ paper](https://openreview.net/pdf?id=BJrFC6ceg) with [Code](https://github.com/jakebelew/gated-pixel-cnn)
