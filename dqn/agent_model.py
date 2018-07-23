@@ -418,7 +418,7 @@ class Agent(BaseModel):
                                       {self.summary_placeholders[tag]: value for tag, value in tag_dict.items()})
     for summary_str in summary_str_lists:
       self.writer.add_summary(summary_str, self.step)
-"""
+
   def play(self, n_step=10000, n_episode=100, test_ep=None, render=False):
     if test_ep == None:
       test_ep = self.ep_end
@@ -427,32 +427,23 @@ class Agent(BaseModel):
 
     if not self.display:
       gym_dir = './tmp/%s-%s' % (self.env_name, get_time())
-      monitor = gym.wrappers.Monitor(self.env.env, gym_dir)
+      self.env.env = gym.wrappers.Monitor(self.env.env, gym_dir)
 
     best_reward, best_idx = 0, 0
     ep_rewards = []
     for idx in tqdm(range(n_episode),ncols=70):
-      screen = monitor.reset()
-      screen = imresize(rgb2gray(screen), (110, 84))
-      screen = screen[18:102, :]
+      screen, reward, action, terminal = self.env.new_random_game()
       current_reward = 0
-
       test_history = init_history(test_history, screen, self.history_length)
 
 
       for t in range(n_step):
-        # 1. predict
         action = self.predict(test_history.get(), test_ep)
-        # 2. act
-        screen, reward, terminal, _ = monitor.step(action)
-        screen = imresize(rgb2gray(screen), (110, 84))
-        screen = screen[18:102, :]
-        # 3. observe
+        screen, reward, terminal = self.env.act(action)
         test_history.add(screen)
 
         current_reward += reward
         if terminal:
-
           break
 
       print("GET REWARD", current_reward)
@@ -470,5 +461,3 @@ class Agent(BaseModel):
     if not self.display:
       monitor.close()
       #gym.upload(gym_dir, writeup='https://github.com/devsisters/DQN-tensorflow', api_key='')
-
-"""

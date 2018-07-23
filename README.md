@@ -15,9 +15,12 @@ PixelCNN is modified from ['gated-pixel-cnn'](https://github.com/jakebelew/gated
 or
 `python main.py --mode pixelcnn`
 
+To reproduce the `args/6744.json`, run `python main.py --mode top-pixelcnn --test`
+<iframe width="560" height="315" src="https://www.youtube.com/embed/mh_pPiGMxfc" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
 The autoencoder mode is not verified yet.
 
-![top-pixelcnn](https://github.com/nolisten/ERL/raw/master/data/5873.png "Top-PixelCNN")
+
+![top-pixelcnn](https://github.com/nolisten/ERL/raw/master/data/6744.png "Top-PixelCNN")
 
 # References
 - [PixelCNN++ paper](https://openreview.net/pdf?id=BJrFC6ceg) with [Code](https://github.com/jakebelew/gated-pixel-cnn)
