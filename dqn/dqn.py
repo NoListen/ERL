@@ -10,8 +10,6 @@ from .base import BaseModel
 from .history import History
 from .experience_replay import DataSet
 from .ops import linear, conv2d, clipped_error
-from .utils import get_time, save_pkl, load_pkl
-from .utils import rgb2gray, imresize
 from functools import reduce
 from .GatedPixelCNN.func import process_density_images, process_density_input, get_network
 from math import log, exp, pow
@@ -28,12 +26,12 @@ class Agent(BaseModel):
     super(Agent, self).__init__(config)
     self.sess = sess
     self.weight_dir = 'weights'
-    self.density_model = get_network("density")
-    self.last_play = 0
     self.env = environment
     self.history = History(self.config)
     self.memory = DataSet(self.config, np.random.RandomState(), self.cnn_format)
     self.ep_steps = 0
+
+
     with tf.variable_scope('step'):
       self.step_op = tf.Variable(0, trainable=False, name='step')
       self.step_input = tf.placeholder('int32', None, name='step_input')
@@ -42,14 +40,7 @@ class Agent(BaseModel):
     self.build_dqn()
 
   def neural_psc(self, frame, step):
-    last_frame = process_density_images(frame)
-    density_input = process_density_input(last_frame)
-
-    prob = self.density_model.prob_evaluate(self.sess, density_input, True) + 1e-8
-    prob_dot = self.density_model.prob_evaluate(self.sess, density_input) + 1e-8
-    pred_gain = np.sum(np.log(prob_dot) - np.log(prob))
-    psc_reward = pow((exp(0.1*pow(step + 1, -0.5) * max(0, pred_gain)) - 1), 0.5)
-    return psc_reward
+    pass
 
   def train(self):
     start_step = self.step_op.eval()
@@ -137,7 +128,7 @@ class Agent(BaseModel):
                 'episode.num of game': num_game,
                 'episode.rewards': ep_rewards,
                 'episode.actions': actions,
-                'training.learning_rate': self.learning_rate_op.eval({self.learning_rate_step: self.step}),
+                'training.lr': self.lr_op.eval({self.lr_step: self.step}),
               }, self.step)
 
           num_game = 0
@@ -183,9 +174,7 @@ class Agent(BaseModel):
       s_t, s_t_plus_1, action, reward, terminal, R = self.memory.random_batch(self.batch_size)
 
     if self.double_q:
-      # Double Q-learning
       pred_action = self.q_action.eval({self.s_t: s_t_plus_1})
-      # the action is selected by the action DQN
       q_t_plus_1_with_pred_action = self.target_q_with_idx.eval({
         self.target_s_t: s_t_plus_1,
         self.target_q_idx: [[idx, pred_a] for idx, pred_a in enumerate(pred_action)]
@@ -199,11 +188,12 @@ class Agent(BaseModel):
 
     # Mix it with Monte-Carlo Value
     target_q_t = (1 - self.beta) * target_q_t + self.beta * (1. - terminal) * R
+
     _, q_t, loss, summary_str = self.sess.run([self.optim, self.q, self.loss, self.q_summary], {
       self.target_q_t: target_q_t,
       self.action: action,
       self.s_t: s_t,
-      self.learning_rate_step: self.step,
+      self.lr_step: self.step
     })
 
 
@@ -217,49 +207,9 @@ class Agent(BaseModel):
     self.w = {}
     self.t_w = {}
 
-    #initializer = tf.contrib.layers.xavier_initializer()
     initializer = tf.truncated_normal_initializer(0, 0.02)
     activation_fn = tf.nn.relu
 
-    with tf.variable_scope('prediction'):
-      if self.cnn_format == 'NHWC':
-        self.s_t = tf.placeholder('float32',
-            [None, self.screen_height, self.screen_width, self.history_length], name='s_t')
-      else:
-        self.s_t = tf.placeholder('float32',
-            [None, self.history_length, self.screen_height, self.screen_width], name='s_t')
-
-      self.l1, self.w['l1_w'], self.w['l1_b'] = conv2d(self.s_t,
-          32, [8, 8], [4, 4], initializer, activation_fn, self.cnn_format, name='l1')
-      self.l2, self.w['l2_w'], self.w['l2_b'] = conv2d(self.l1,
-          64, [4, 4], [2, 2], initializer, activation_fn, self.cnn_format, name='l2')
-      self.l3, self.w['l3_w'], self.w['l3_b'] = conv2d(self.l2,
-          64, [3, 3], [1, 1], initializer, activation_fn, self.cnn_format, name='l3')
-
-      shape = self.l3.get_shape().as_list()
-      self.l3_flat = tf.reshape(self.l3, [-1, reduce(lambda x, y: x * y, shape[1:])])
-
-      if self.dueling:
-        self.value_hid, self.w['l4_val_w'], self.w['l4_val_b'] = \
-            linear(self.l3_flat, 512, activation_fn=activation_fn, name='value_hid')
-
-        self.adv_hid, self.w['l4_adv_w'], self.w['l4_adv_b'] = \
-            linear(self.l3_flat, 512, activation_fn=activation_fn, name='adv_hid')
-
-        self.value, self.w['val_w_out'], self.w['val_w_b'] = \
-          linear(self.value_hid, 1, name='value_out')
-
-        self.advantage, self.w['adv_w_out'], self.w['adv_w_b'] = \
-          linear(self.adv_hid, self.env.action_size, name='adv_out')
-
-        # Average Dueling
-        self.q = self.value + (self.advantage - 
-          tf.reduce_mean(self.advantage, reduction_indices=1, keep_dims=True))
-      else:
-        self.l4, self.w['l4_w'], self.w['l4_b'] = linear(self.l3_flat, 512, activation_fn=activation_fn, name='l4')
-        self.q, self.w['q_w'], self.w['q_b'] = linear(self.l4, self.env.action_size, name='q')
-
-      self.q_action = tf.argmax(self.q, dimension=1)
 
       q_summary = []
       avg_q = tf.reduce_mean(self.q, 0)
@@ -270,13 +220,13 @@ class Agent(BaseModel):
     # target network
     with tf.variable_scope('target'):
       if self.cnn_format == 'NHWC':
-        self.target_s_t = tf.placeholder('float32', 
+        self.target_s_t = tf.placeholder('float32',
             [None, self.screen_height, self.screen_width, self.history_length], name='target_s_t')
       else:
-        self.target_s_t = tf.placeholder('float32', 
+        self.target_s_t = tf.placeholder('float32',
             [None, self.history_length, self.screen_height, self.screen_width], name='target_s_t')
 
-      self.target_l1, self.t_w['l1_w'], self.t_w['l1_b'] = conv2d(self.target_s_t, 
+      self.target_l1, self.t_w['l1_w'], self.t_w['l1_b'] = conv2d(self.target_s_t,
           32, [8, 8], [4, 4], initializer, activation_fn, self.cnn_format, name='target_l1')
       self.target_l2, self.t_w['l2_w'], self.t_w['l2_b'] = conv2d(self.target_l1,
           64, [4, 4], [2, 2], initializer, activation_fn, self.cnn_format, name='target_l2')
@@ -300,7 +250,7 @@ class Agent(BaseModel):
           linear(self.t_adv_hid, self.env.action_size, name='target_adv_out')
 
         # Average Dueling
-        self.target_q = self.t_value + (self.t_advantage - 
+        self.target_q = self.t_value + (self.t_advantage -
           tf.reduce_mean(self.t_advantage, reduction_indices=1, keep_dims=True))
       else:
         self.target_l4, self.t_w['l4_w'], self.t_w['l4_b'] = \
@@ -332,20 +282,20 @@ class Agent(BaseModel):
       self.global_step = tf.Variable(0, trainable=False)
 
       self.loss = tf.reduce_mean(clipped_error(self.delta), name='loss')
-      self.learning_rate_step = tf.placeholder('int64', None, name='learning_rate_step')
-      self.learning_rate_op = tf.maximum(self.learning_rate_minimum,
+      self.lr_step = tf.placeholder('int64', None, name='lr_step')
+      self.lr_op = tf.maximum(self.lr_minimum,
           tf.train.exponential_decay(
-              self.learning_rate,
-              self.learning_rate_step,
-              self.learning_rate_decay_step,
-              self.learning_rate_decay,
+              self.lr,
+              self.lr_step,
+              self.lr_decay_step,
+              self.lr_decay,
               staircase=True))
       self.optim = tf.train.RMSPropOptimizer(
-          self.learning_rate_op, momentum=0.95, epsilon=0.01).minimize(self.loss)
+          self.lr_op, momentum=0.95, epsilon=0.01).minimize(self.loss)
 
     with tf.variable_scope('summary'):
       scalar_summary_tags = ['average.reward', 'average.loss', 'average.q', \
-          'episode.max reward', 'episode.min reward', 'episode.avg reward', 'episode.num of game', 'training.learning_rate']
+          'episode.max reward', 'episode.min reward', 'episode.avg reward', 'episode.num of game', 'training.lr']
 
       self.summary_placeholders = {}
       self.summary_ops = {}
@@ -374,81 +324,9 @@ class Agent(BaseModel):
     for name in self.w.keys():
       self.t_w_assign_op[name].eval({self.t_w_input[name]: self.w[name].eval()})
 
-  def save_weight_to_pkl(self):
-    if not os.path.exists(self.weight_dir):
-      os.makedirs(self.weight_dir)
-
-    for name in self.w.keys():
-      save_pkl(self.w[name].eval(), os.path.join(self.weight_dir, "%s.pkl" % name))
-
-  def load_weight_from_pkl(self, cpu_mode=False):
-    with tf.variable_scope('load_pred_from_pkl'):
-      self.w_input = {}
-      self.w_assign_op = {}
-
-      for name in self.w.keys():
-        self.w_input[name] = tf.placeholder('float32', self.w[name].get_shape().as_list(), name=name)
-        self.w_assign_op[name] = self.w[name].assign(self.w_input[name])
-
-    for name in self.w.keys():
-      self.w_assign_op[name].eval({self.w_input[name]: load_pkl(os.path.join(self.weight_dir, "%s.pkl" % name))})
-
-    self.update_target_q_network()
 
   def inject_summary(self, tag_dict, step):
     summary_str_lists = self.sess.run([self.summary_ops[tag] for tag in tag_dict.keys()],
                                       {self.summary_placeholders[tag]: value for tag, value in tag_dict.items()})
     for summary_str in summary_str_lists:
       self.writer.add_summary(summary_str, self.step)
-
-  def play(self, n_step=10000, n_episode=100, test_ep=None, render=False):
-    if test_ep == None:
-      test_ep = self.ep_end
-
-    test_history = History(self.config)
-
-    if not self.display:
-      gym_dir = './tmp/%s-%s' % (self.env_name, get_time())
-      monitor = gym.wrappers.Monitor(self.env.env, gym_dir)
-
-    best_reward, best_idx = 0, 0
-    ep_rewards = []
-    for idx in tqdm(range(n_episode),ncols=70):
-      screen = monitor.reset()
-      screen = imresize(rgb2gray(screen), (110, 84))
-      screen = screen[18:102, :]
-      current_reward = 0
-
-      test_history = init_history(test_history, screen, self.history_length)
-
-
-      for t in range(n_step):
-        # 1. predict
-        action = self.predict(test_history.get(), test_ep)
-        # 2. act
-        screen, reward, terminal, _ = monitor.step(action)
-        screen = imresize(rgb2gray(screen), (110, 84))
-        screen = screen[18:102, :]
-        # 3. observe
-        test_history.add(screen)
-
-        current_reward += reward
-        if terminal:
-
-          break
-
-      print("GET REWARD", current_reward)
-      ep_rewards.append(current_reward)
-      if current_reward > best_reward:
-        best_reward = current_reward
-        best_idx = idx
-
-
-    print("="*30)
-    print(" [%d] Best reward : %d" % (best_idx, best_reward))
-    print("Average reward: %f" %  np.mean(ep_rewards))
-    print("="*30)
-
-    if not self.display:
-      monitor.close()
-      #gym.upload(gym_dir, writeup='https://github.com/devsisters/DQN-tensorflow', api_key='')

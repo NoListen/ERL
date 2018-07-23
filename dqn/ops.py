@@ -16,7 +16,8 @@ def conv2d(x,
            activation_fn=tf.nn.relu,
            data_format='NHWC',
            padding='VALID',
-           name='conv2d'):
+           name='conv2d',
+           variable_return=True):
   with tf.variable_scope(name):
     if data_format == 'NCHW':
       stride = [1, 1, stride[0], stride[1]]
@@ -34,9 +35,13 @@ def conv2d(x,
   if activation_fn != None:
     out = activation_fn(out)
 
-  return out, w, b
+  if variable_return:
+    return out, w, b
+  else:
+    return out
 
-def linear(input_, output_size, stddev=0.02, bias_start=0.0, activation_fn=None, name='linear'):
+def linear(input_, output_size, stddev=0.02, bias_start=0.0, activation_fn=None, name='linear',
+           variable_return=True):
   shape = input_.get_shape().as_list()
 
   with tf.variable_scope(name):
@@ -48,6 +53,9 @@ def linear(input_, output_size, stddev=0.02, bias_start=0.0, activation_fn=None,
     out = tf.nn.bias_add(tf.matmul(input_, w), b)
 
     if activation_fn != None:
-      return activation_fn(out), w, b
-    else:
+      out = activation_fn(out)
+
+    if variable_return:
       return out, w, b
+    else:
+      return out

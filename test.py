@@ -24,8 +24,14 @@ def concat2imgs(img1, img2):
     img[:, 48:] = img2
     return img
 
+def pad_num(n):
+  sn = str(n)
+  if len(sn)<4:
+    sn = '0'*(4-len(sn)) + sn
+  return sn
+
 def saveimg(img, step, prefix):
-    imsave(prefix+"_%i.png" % step, img)
+    imsave(prefix+"%s.png" % pad_num(step), img)
 
 class RandomPolicy(object):
     def __init__(self, na):

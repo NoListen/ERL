@@ -15,8 +15,7 @@ PixelCNN is modified from ['gated-pixel-cnn'](https://github.com/jakebelew/gated
 or
 `python main.py --mode pixelcnn`
 
-To reproduce the `args/6744.json`, run `python main.py --mode top-pixelcnn --test`
-<iframe width="560" height="315" src="https://www.youtube.com/embed/mh_pPiGMxfc" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+To reproduce the [result](https://www.youtube.com/embed/mh_pPiGMxfc) of `args/6744.json`, run `python main.py --mode top-pixelcnn --test`
 The autoencoder mode is not verified yet.
 
 
